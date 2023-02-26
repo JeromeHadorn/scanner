@@ -1,0 +1,50 @@
+FROM golang:1.17 as build
+RUN apt-get update -y && \
+    apt-get install -y build-essential libssl-dev
+RUN apt-get install -y  git gcc-multilib gcc-mingw-w64 autoconf automake libtool libjansson-dev libmagic-dev libssl-dev make gcc pkg-config bison flex libjansson-dev
+
+
+# JANSSON INSTALLATION
+RUN echo "Build and install Jansson" \
+ && git clone https://github.com/akheron/jansson \
+ && cd jansson \
+ && autoreconf -vi --force \
+ && ./configure \
+ && make \
+ && make install
+WORKDIR /
+
+# Installs Yara
+RUN git clone  --depth 1  --branch v4.2.0 https://github.com/VirusTotal/yara.git yara
+
+WORKDIR /yara
+RUN ./bootstrap.sh && \
+    ./configure --with-crypto --enable-dotnet --disable-magic --enable-cuckoo LDFLAGS='-L/usr/local/lib' CFLAGS=-I/usr/local/include &&\
+    make && \
+    make install && \
+    make check
+RUN echo "/usr/local/lib" >> /etc/ld.so.conf
+RUN ldconfig
+RUN yara -h
+
+# Get dependancies - will also be cached if we won't change mod/sum
+WORKDIR /go/src/project/scanner
+COPY src/go.mod .
+COPY src/go.sum .
+RUN go mod download
+
+# Load Scanner
+COPY src/ /go/src/project/scanner/
+
+RUN echo "/usr/local/lib" >> /etc/ld.so.conf
+RUN ldconfig
+
+# Compile for Linux
+RUN CGO_ENABLED="1" \
+    CGO_CFLAGS="-I/usr/local/include"\
+    CGO_LDFLAGS='-L/usr/local/lib/ -ldl -lm -ljansson -lcrypto -lyara'\
+    GOARCH="amd64"\
+    GOOS="linux"\
+    go build -o malware_scanner .
+
+RUN chmod +x malware_scanner

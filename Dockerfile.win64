@@ -1,0 +1,79 @@
+FROM ubuntu as dep-base
+
+# Download necessary Windows C Compiler and dependencies
+RUN apt-get update -y && \
+    apt-get install -y build-essential git mingw-w64 gcc-multilib gcc-mingw-w64 autoconf automake libtool libmagic-dev libssl-dev
+
+# NOTE: OPENSSL INSTALLATION
+# Download open ssl for lcrypto lib Win64 without docs
+RUN git clone --depth 1 -b openssl-3.0.0 https://github.com/openssl/openssl.git openssl/
+WORKDIR /openssl
+RUN export CC=x86_64-w64-mingw32-gcc
+RUN ./Configure --prefix=/usr/local --cross-compile-prefix=x86_64-w64-mingw32- mingw64 shared && \
+    make && \
+    make install_sw
+WORKDIR /
+
+# NOTE: JANSSON INSTALLATION
+RUN export CC=x86_64-w64-mingw32-gcc
+RUN export CONFIGFLAGS=--host=x86_64-w64-mingw32
+RUN echo "Build and install Jansson" \
+ && git clone https://github.com/akheron/jansson \
+ && cd jansson \
+ && autoreconf -vi --force \
+ && ./configure --host=x86_64-w64-mingw32 CC=x86_64-w64-mingw32-gcc \
+ && make \
+#  && make check \
+ && make install
+WORKDIR /
+
+# NOTE: YARA INSTALLATION
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get install -y make gcc pkg-config flex bison
+RUN git clone --depth 1 --branch v4.2.0 https://github.com/VirusTotal/yara.git yara64
+
+# NOTE: TODO: ADDING CUSTOM YARA EXTENSION
+
+# Add libyara to ldconfig
+RUN echo "/usr/local/lib" >> /etc/ld.so.conf
+RUN ldconfig
+
+RUN cd yara64 && \
+    ./bootstrap.sh && \
+    CC=x86_64-w64-mingw32-gcc  CFLAGS=-I/usr/local/include CONFIGFLAGS=--host=x86_64-w64-mingw32 LDFLAGS='-L/usr/local/lib/ -L/usr/local/lib64' ./configure --host=x86_64-w64-mingw32 --with-crypto --disable-magic --enable-cuckoo  && \
+    cd libyara && \
+    make && \
+    make install && \
+    make check
+
+FROM golang:1.17 as final
+RUN apt-get update -y && \
+    apt-get install -y build-essential  mingw-w64 gcc-multilib gcc-mingw-w64  automake 
+
+# Copy Syso File
+COPY --from=dep-base /usr/local/ /usr/local/
+
+# Get dependancies - will also be cached if we won't change mod/sum
+WORKDIR /go/src/project/scanner
+COPY src/go.mod .
+COPY src/go.sum .
+RUN go mod download
+
+# BUILD SYSO FILE
+COPY src/winres/ /go/src/project/scanner/winres
+WORKDIR /go/src/project/scanner/
+RUN go install github.com/tc-hib/go-winres@latest
+RUN go-winres make
+
+# Load Scanner
+COPY src/ /go/src/project/scanner/
+
+
+# Compile for Windows64
+RUN CGO_ENABLED="1" \
+    CGO_CFLAGS="-I/usr/local/include"\
+    CGO_LDFLAGS='-L/usr/local/lib -lyara -lws2_32 -lgdi32 -ljansson -L/usr/local/lib64 -lcrypto'\
+    GOARCH="amd64"\
+    GOOS="windows"\
+    CC="x86_64-w64-mingw32-gcc"\
+    go build -tags yara_no_pkg_config -ldflags '-w -extldflags "-static"' -o /go/bin/scanner_windows64.exe

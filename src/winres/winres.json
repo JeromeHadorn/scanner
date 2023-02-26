@@ -1,0 +1,57 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": []
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {
+          "name": "scanner - Malware Scanner",
+          "version": "0.0"
+        },
+        "description": "Malware Scanner",
+        "minimum-os": "win7",
+        "execution-level": "administrator",
+        "ui-access": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": false,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": false
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "0.0.0.0",
+          "product_version": "0.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "Comments": "",
+            "CompanyName": "",
+            "FileDescription": "",
+            "FileVersion": "",
+            "InternalName": "",
+            "LegalCopyright": "",
+            "LegalTrademarks": "",
+            "OriginalFilename": "",
+            "PrivateBuild": "",
+            "ProductName": "",
+            "ProductVersion": "",
+            "SpecialBuild": ""
+          }
+        }
+      }
+    }
+  }
+}

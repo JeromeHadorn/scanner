@@ -1,0 +1,4 @@
+*.syso
+bin/
+.dev/
+.DS_Store
